@@ -7,13 +7,15 @@ package main
 
 import (
 	"encoding/json"
+	_ "github.com/RohitPatilRRP/golangDemo/docs"
+	gocb "github.com/couchbase/gocb/v2"
+	"github.com/gorilla/mux"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
-	"github.com/gorilla/mux"
-	httpSwagger "github.com/swaggo/http-swagger"
-	_ "github.com/RohitPatilRRP/golangDemo/docs"	
+	"time"
 )
 
 //Book struct (Model)
@@ -107,10 +109,27 @@ func deleteBook(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(books)
 }
 
+var bucketName = "conf"
+
 func main() {
 
 	r := mux.NewRouter()
 
+	cluster, err := gocb.Connect(
+		"localhost",
+		gocb.ClusterOptions{
+			Username: "admin",
+			Password: "123456",
+		})
+	if err != nil {
+		panic(err)
+	}
+	bucket := cluster.Bucket(bucketName)
+	// We wait until the bucket is definitely connected and setup.
+	err = bucket.WaitUntilReady(5*time.Second, nil)
+	if err != nil {
+		panic(err)
+	}
 	//Mock Data
 	books = append(books, Book{ID: "1", Isbn: "123", Title: "Book One", Aurhor: &Author{Firstname: "Rohit", Lastname: "Patil"}})
 	books = append(books, Book{ID: "2", Isbn: "132", Title: "Book Two", Aurhor: &Author{Firstname: "John", Lastname: "Miller"}})
@@ -122,12 +141,14 @@ func main() {
 	r.HandleFunc("/api/books/{id}", deleteBook).Methods("DELETE")
 
 	r.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
-		httpSwagger.URL("http://localhost:8080/swagger/doc.json"),//The url pointing to API definition
+		httpSwagger.URL("http://localhost:8080/swagger/doc.json"), //The url pointing to API definition
 		httpSwagger.DeepLinking(true),
 		httpSwagger.DocExpansion("none"),
 		httpSwagger.DomID("#swagger-ui"),
 	))
 
+	println("Sever started...")
 	log.Fatal(http.ListenAndServe(":8080", r))
+
 
 }
